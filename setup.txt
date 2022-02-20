@@ -1,0 +1,8 @@
+MASTER_NAME = master
+MASTER_PASSWORD = COMS6998w21&
+DOMAIN_ENDPOINT = https://search-xxx.us-east-1.es.amazonaws.com
+JSON_FILENAME = sample.json
+
+curl -XPOST -u restaurants:442473034Aa@ https://search-restaurants-fqptc3egov4fgxc4bdyy4qzt44.us-east-1.es.amazonaws.com/_bulk --data-binary @restaurants.json -H 'Content-Type: application/json'
+
+
