@@ -26,7 +26,6 @@ def lookup_es(cuisine):
             "_script":{
                 "script":"Math.random()",
                 "type":"number",
-                "params":{},
                 "order":"asc"
             }
         }
@@ -94,15 +93,18 @@ def lambda_handler(event, context):
     email = message['MessageAttributes']['Email']['StringValue']
     num = message['MessageAttributes']['NumberOfAttendence']['StringValue']
     time = message['MessageAttributes']['Time']['StringValue']
-
+    if cuisine == 'indian':
+        cuisine = 'indpak'
+    if cuisine == 'american':
+        cuisine = 'tradamerican'
 
     # get from elastic search
+
     id = []
     data = lookup_es(cuisine)
 
     for item in json.loads(data["body"])["hits"]["hits"]:
         id.append(item["_source"]["restaurant_id"])
-
 
     # get from dynamo
     name = []
@@ -124,6 +126,20 @@ def lambda_handler(event, context):
     SUBJECT = "YOUR PERSONALIZED RESTAURANT SUGGESTIONS"
 
     BODY_TEXT = ("")
+
+    # edit
+    if cuisine == 'indpak':
+        cuisine = 'Indian'
+    if cuisine == 'chinese':
+        cuisine = 'Chinese'
+    if cuisine == 'mexican':
+        cuisine = 'Mexican'
+    if cuisine == 'tradamerican':
+        cuisine = 'American'
+    if cuisine == 'japanese':
+        cuisine = 'Japanese'
+    if cuisine == 'italian':
+        cuisine = 'Italian'
 
     BODY_HTML = """<html>
     <head></head>
