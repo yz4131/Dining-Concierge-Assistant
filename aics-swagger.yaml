@@ -1,83 +1,98 @@
-swagger: '2.0'
+---
+swagger: "2.0"
 info:
-  title: AI Customer Service API
-  description: 'AI Customer Service application, built during the Cloud and Big Data course at Columbia University.'
-  version: 1.0.0
+  description: "AI Customer Service application, built during the Cloud and Big Data\
+    \ course at Columbia University."
+  version: "1.0.0"
+  title: "AI Customer Service API"
+host: "8784obtlbf.execute-api.us-east-1.amazonaws.com"
+basePath: "/v1"
 schemes:
-  - https
-basePath: /v1
-produces:
-  - application/json
+- "https"
 paths:
   /chatbot:
     post:
-      summary: The endpoint for the Natural Language Understanding API.
-      description: |
-        This API takes in one or more messages from the client and returns
-        one or more messages as a response. The API leverages the NLP
-        backend functionality, paired with state and profile information
-        and returns a context-aware reply.
-      tags:
-        - NLU
-      operationId: sendMessage
+      operationId: "sendMessage"
+      consumes:
+      - "application/json"
       produces:
-        - application/json
+      - "application/json"
       parameters:
-        - name: body
-          in: body
-          required: true
-          schema:
-            $ref: '#/definitions/BotRequest'
+      - in: "body"
+        name: "BotRequest"
+        required: true
+        schema:
+          $ref: "#/definitions/BotRequest"
       responses:
-        '200':
-          description: A Chatbot response
+        "200":
+          description: "200 response"
           schema:
-            $ref: '#/definitions/BotResponse'
-        '403':
-          description: Unauthorized
+            $ref: "#/definitions/BotResponse"
+          headers:
+            Access-Control-Allow-Origin:
+              type: "string"
+        "500":
+          description: "500 response"
           schema:
-            $ref: '#/definitions/Error'
-        '500':
-          description: Unexpected error
+            $ref: "#/definitions/Error"
+        "403":
+          description: "403 response"
           schema:
-            $ref: '#/definitions/Error'
+            $ref: "#/definitions/Error"
+    options:
+      consumes:
+      - "application/json"
+      produces:
+      - "application/json"
+      responses:
+        "200":
+          description: "200 response"
+          schema:
+            $ref: "#/definitions/BotResponse"
+          headers:
+            Access-Control-Allow-Origin:
+              type: "string"
+            Access-Control-Allow-Methods:
+              type: "string"
+            Access-Control-Allow-Headers:
+              type: "string"
 definitions:
   BotRequest:
-    type: object
+    type: "object"
     properties:
       messages:
-        type: array
+        type: "array"
         items:
-          $ref: '#/definitions/Message'
-  BotResponse:
-    type: object
-    properties:
-      messages:
-        type: array
-        items:
-          $ref: '#/definitions/Message'
+          $ref: "#/definitions/Message"
   Message:
-    type: object
+    type: "object"
     properties:
       type:
-        type: string
+        type: "string"
       unstructured:
-        $ref: '#/definitions/UnstructuredMessage'
+        $ref: "#/definitions/UnstructuredMessage"
   UnstructuredMessage:
-    type: object
+    type: "object"
     properties:
       id:
-        type: string
+        type: "string"
       text:
-        type: string
+        type: "string"
       timestamp:
-        type: string
-        format: datetime
+        type: "string"
+        format: "datetime"
+  BotResponse:
+    type: "object"
+    properties:
+      messages:
+        type: "array"
+        items:
+          $ref: "#/definitions/Message"
   Error:
-    type: object
+    type: "object"
     properties:
       code:
-        type: integer
-        format: int32
+        type: "integer"
+        format: "int32"
       message:
-        type: string
+        type: "string"
