@@ -4,4 +4,3 @@
 
 * Website: https://eecs6998-hw1-yz4131.s3.amazonaws.com/chat.html
 
-![screenshot](Architecture.png)
