@@ -3,59 +3,40 @@ import boto3
 from botocore.exceptions import ClientError
 import requests
 from requests_aws4auth import AWS4Auth
+from collections import defaultdict
 
 
-def lookup_es(cuisine):
-    region = 'us-east-1'
-    service = 'es'
-    credentials = boto3.Session().get_credentials()
-    awsauth = AWS4Auth(credentials.access_key, credentials.secret_key, region, service, session_token=credentials.token)
 
-    host = 'https://search-restaurants-fqptc3egov4fgxc4bdyy4qzt44.us-east-1.es.amazonaws.com'
-    index = cuisine
-    url = host + '/' + index + '/_search'
-    query = {
-        "size": 3,
-        "query": {
-            "multi_match": {
-                "query": index,
-                "fields": ["_index"]
-            }
-        },
-        "sort":{
-            "_script":{
-                "script":"Math.random()",
-                "type":"number",
-                "order":"asc"
-            }
-        }
-    }
-    headers = { "Content-Type": "application/json" }
-
-    r = requests.get(url, auth=awsauth, headers=headers, data=json.dumps(query))
-
-    response = {
-        "statusCode": 200,
-        "headers": {
-            "Access-Control-Allow-Origin": '*'
-        },
-        "isBase64Encoded": False
-    }
-
-    response['body'] = r.text
-    return response
-
-
-def lookup_dynamo(key, table='yelp'):
+def lookup_dynamo_and_sort(cuisine, city, longitude, latitude):
     db = boto3.resource('dynamodb')
-    table = db.Table(table)
+    table = db.Table(city)
+    res = []
+    # query by coordinates
     try:
-        response = table.get_item(Key=key)
+        response = table.query(
+            IndexName = 'rtype-rlongitude-index',
+            KeyConditionExpression = (
+                Key('cuisine').eq(cuisine) &
+                Key('rlongitude').between(longitude-Decimal(0.003), longitude+Decimal(0.003))
+                )
+        )
     except ClientError as e:
         print('Error', e.response['Error']['Message'])
     else:
-        return response['Item']
+        for i in response['Items']:
+            if latitude-Decimal(0.003) <= i['rlatitude'] <= latitude+Decimal(0.003):
+                res.append(i)
 
+        # start sorting
+        all_res = defaultdict(lambda: {}) #structure: {'rid': {'info': ..., 'dist': ...}}
+        for item in res:
+            all_res[item['rid']]['info'] = item
+            all_res[item['rid']]['dist'] = abs(all_res[item['rid']]['info']['rlatitude'] - latitude) \
+            + abs(all_res[item['rid']]['info']['rlongitude'] - longitude)
+
+        sorted_res = dict(sorted(all_res.items(), key=lambda item: (item[1]['info']['rrating'], item[1]['dist']), reverse = True))
+
+    return sorted_res
 
 def get_data(queue_url):
     sqs = boto3.client('sqs')
@@ -84,78 +65,76 @@ def get_data(queue_url):
     return message
 
 def lambda_handler(event, context):
-
     # get from sqs
     message = get_data('https://sqs.us-east-1.amazonaws.com/415613607679/Restaurants')
-    city = message['MessageAttributes']['City']['StringValue']
+
+    city = message['MessageAttributes']['City']['StringValue'].lower()
+    longitude = Decimal(message['MessageAttributes']['Longitude']['StringValue'])
+    latitude = Decimal(message['MessageAttributes']['Latitude']['StringValue'])
     cuisine = message['MessageAttributes']['Cuisine']['StringValue'].lower()
-    date = message['MessageAttributes']['Date']['StringValue']
     email = message['MessageAttributes']['Email']['StringValue']
-    num = message['MessageAttributes']['NumberOfAttendence']['StringValue']
-    time = message['MessageAttributes']['Time']['StringValue']
-    if cuisine == 'indian':
-        cuisine = 'indpak'
-    if cuisine == 'american':
-        cuisine = 'tradamerican'
-
-    # get from elastic search
-
-    id = []
-    data = lookup_es(cuisine)
-
-    for item in json.loads(data["body"])["hits"]["hits"]:
-        id.append(item["_source"]["restaurant_id"])
 
     # get from dynamo
     name = []
     address = []
-    for i in id:
-        info = lookup_dynamo({'restaurant_id':i})
+    phone = []
+    res = lookup_dynamo_and_sort(cuisine, city, longitude, latitude)
+    count = 0
+    for restaurant in res:
+        count += 1
+        if count > 3:
+            break
+
+        info = res[restaurant]['info']
         name.append(info['name'])
         address.append(info['address'])
+        phone.append(info['phone'])
 
     #send email
     SENDER = "Dining Concierge Assistant <rz41314131@gmail.com>"
-
     RECIPIENT = email
-
     CONFIGURATION_SET = "ConfigSet"
-
     AWS_REGION = "us-east-1"
-
     SUBJECT = "YOUR PERSONALIZED RESTAURANT SUGGESTIONS"
 
-    BODY_TEXT = ("")
-
-    # edit
-    if cuisine == 'indpak':
-        cuisine = 'Indian'
-    if cuisine == 'chinese':
-        cuisine = 'Chinese'
-    if cuisine == 'mexican':
-        cuisine = 'Mexican'
-    if cuisine == 'tradamerican':
-        cuisine = 'American'
-    if cuisine == 'japanese':
-        cuisine = 'Japanese'
-    if cuisine == 'italian':
-        cuisine = 'Italian'
-
-    BODY_HTML = """<html>
-    <head></head>
-    <body>
-      <h1>YOUR PERSONALIZED RESTAURANT SUGGESTIONS</h1>
-      <p>Hello! Here are my {} restaurant suggestions for {} people, for {}
-      at {}: 1. {}, located at {} 2. {}, located at {} 3. {}, located at {}.
-      </p>
-    </body>
-    </html>
-            """.format(cuisine,num,date,time,name[0],address[0],name[1],address[1],name[2],address[2])
+    if len(name) == 3:
+        BODY_HTML = """<html>
+        <head></head>
+        <body>
+          <h1>YOUR PERSONALIZED RESTAURANT SUGGESTIONS</h1>
+          <p>Hello! Here are my {} restaurant suggestions for you: 1. {}, located at {} and could be reached at {} 
+          2. {}, located at {} and could be reached at {} 3. {}, located at {} and could be reached at {}.
+          </p>
+        </body>
+        </html>
+                """.format(cuisine,name[0],address[0],phone[0],name[1],address[1],phone[1],name[2],address[2],phone[2])
+    elif len(name) == 2:
+        BODY_HTML = """<html>
+        <head></head>
+        <body>
+          <h1>YOUR PERSONALIZED RESTAURANT SUGGESTIONS</h1>
+          <p>Hello! Here are my {} restaurant suggestions for you: 1. {}, located at {} and could be reached at {} 
+          2. {}, located at {} and could be reached at {}.
+          </p>
+        </body>
+        </html>
+                """.format(cuisine,name[0],address[0],phone[0],name[1],address[1],phone[1])
+    elif len(name) == 1:
+        BODY_HTML = """<html>
+        <head></head>
+        <body>
+          <h1>YOUR PERSONALIZED RESTAURANT SUGGESTIONS</h1>
+          <p>Hello! Here are my {} restaurant suggestions for you: 1. {}, located at {} and could be reached at {}.
+          </p>
+        </body>
+        </html>
+                """.format(cuisine,name[0],address[0],phone[0])
+    else:
+        return
 
     CHARSET = "UTF-8"
 
     client = boto3.client('ses',region_name=AWS_REGION)
-
     try:
         response = client.send_email(
             Destination={
@@ -168,10 +147,6 @@ def lambda_handler(event, context):
                     'Html': {
                         'Charset': CHARSET,
                         'Data': BODY_HTML,
-                    },
-                    'Text': {
-                        'Charset': CHARSET,
-                        'Data': BODY_TEXT,
                     },
                 },
                 'Subject': {
@@ -187,6 +162,4 @@ def lambda_handler(event, context):
     else:
         print("Email sent! Message ID:"),
         print(response['MessageId'])
-
-
     return

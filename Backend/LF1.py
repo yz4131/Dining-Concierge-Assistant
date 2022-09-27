@@ -91,23 +91,30 @@ def build_validation_result(is_valid, violated_slot, message_content):
         'message': {'contentType': 'PlainText', 'content': message_content}
     }
 
+def validEmail(email):
+    return True
+
 
 def validate_Dining(City, Date, Type):
-    Cities = ['manhattan']
-    # Dates = ['today','tomorrow']
-    Types = ['chinese','american','italian','japanese','indian','mexican']
-    if City is not None and City.lower() not in Cities:
+    Cities = set(['manhattan'])
+    Types = set(['chinese','american','italian','japanese','indian','mexican'])
+    if City and City.lower() not in Cities:
         return build_validation_result(False,
                                        'Manhattan',
                                        'We currently do not support {}, would you like to change to a different city?  '
                                        'Our most popular city is Manhattan'.format(City))
 
-    if Type is not None and Type.lower() not in Types:
+    if Type and Type.lower() not in Types:
         return build_validation_result(False,
                                        'TypeOfCuisine',
                                        'We currently do not support {}, would you like to try something else?  '
                                        'You can choose among Chinese, Japanese, American, Indian, Italian, and Mexican.'
                                        'I personally suggest Chinese'.format(Type))
+
+    if Email and not validEmail(Email):
+         return build_validation_result(False,
+                                       'UserEmails',
+                                       'Sorry that email address is not valid.')       
     return build_validation_result(True, None, None)
 
 
@@ -156,7 +163,7 @@ def Dining(intent_request):
         # Perform basic validation on the supplied input slots.
         # Use the elicitSlot dialog action to re-prompt for the first violation detected.
         slots = intent_request['currentIntent']['slots']
-        validation_result = validate_Dining(City, Date, Type)
+        validation_result = validate_Dining(City, Date, Type, Email)
         if not validation_result['isValid']:
             slots[validation_result['violatedSlot']] = None
             return elicit_slot(intent_request['sessionAttributes'],
